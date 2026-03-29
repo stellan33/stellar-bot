@@ -1,0 +1,4 @@
+slack-bolt
+anthropic
+python-dotenv
+requests
