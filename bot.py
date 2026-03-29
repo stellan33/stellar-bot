@@ -134,6 +134,7 @@ def run_viking_task(prompt, channel, thread_ts):
             thread_ts=thread_ts,
             text=f"✅ Done!\n{output}{stats_footer}" if output else f"✅ Done! (no output){stats_footer}"
         )
+        print(f"[BOT TX] #stellar-dev | {len(output):,} chars | {time_str or '?'}", flush=True)
 
         if output:
             add_to_viking_memory("stellar-dev", prompt, output)
@@ -187,6 +188,7 @@ def run_claude_task(prompt, channel, thread_ts):
             thread_ts=thread_ts,
             text=f"✅ Done!\n{output}{stats_footer}"
         )
+        print(f"[BOT TX] #claude-questions | {len(output):,} chars | {input_tokens}in/{output_tokens}out tokens", flush=True)
 
         # Update thread history
         claude_thread_history[thread_ts] = messages + [{"role": "assistant", "content": output}]
@@ -225,6 +227,9 @@ def handle_mention(event, say):
             say("⏳ A task is already running. Please wait for it to finish.", thread_ts=thread_ts)
             return
         task_running = True
+
+    chan_name = "#claude-questions" if channel == claude_questions_channel_id else "#stellar-dev"
+    print(f"[BOT RX] {chan_name} | {prompt[:60].replace(chr(10), ' ')}", flush=True)
 
     if channel == claude_questions_channel_id:
         thread = threading.Thread(target=run_claude_task, args=(prompt, channel, thread_ts))
