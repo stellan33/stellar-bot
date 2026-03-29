@@ -56,6 +56,6 @@ echo   Slack Bot  : see "Slack Bot" window
 echo   Dev Server : http://localhost:3000
 echo.
 echo   NOTE: If this is the first run or you have
-echo   made code changes, run update-index.bat
+echo   made code changes, run update-index-smart.bat
 echo ================================================
 pause
