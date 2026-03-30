@@ -286,9 +286,12 @@ $VLM_MODELS = @(
 )
 
 $BOT_MODELS = @(
-    [PSCustomObject]@{ Label = "Claude Haiku 4.5  (fast, cheap)"; Model = "claude-haiku-4-5-20251001" },
-    [PSCustomObject]@{ Label = "Claude Sonnet 4.6  (balanced)";   Model = "claude-sonnet-4-6"         },
-    [PSCustomObject]@{ Label = "Claude Opus 4.6  [BIGBRAIN]";     Model = "claude-opus-4-6"           }
+    [PSCustomObject]@{ Label = "Claude 3.5 Haiku  (fastest, cheapest)";  Model = "claude-3-5-haiku-20241022"    },
+    [PSCustomObject]@{ Label = "Claude Haiku 4.5  (fast, cheap)";        Model = "claude-haiku-4-5-20251001"    },
+    [PSCustomObject]@{ Label = "Claude 3.5 Sonnet  (prev-gen balanced)"; Model = "claude-3-5-sonnet-20241022"   },
+    [PSCustomObject]@{ Label = "Claude Sonnet 4.6  (balanced)";          Model = "claude-sonnet-4-6"            },
+    [PSCustomObject]@{ Label = "Claude Sonnet 4.6 Extended  (thinking)"; Model = "claude-sonnet-4-6-20250514"   },
+    [PSCustomObject]@{ Label = "Claude Opus 4.6  [BIGBRAIN]";            Model = "claude-opus-4-6"              }
 )
 
 $EMBED_OPTIONS = @(
