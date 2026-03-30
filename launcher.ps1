@@ -512,7 +512,8 @@ function Show-Settings {
             $c.embedding.dense.api_key   = $envVarRef
             $c.embedding.dense.api_base  = $newEmbed.ApiBase
         }
-        $c | ConvertTo-Json -Depth 10 | Set-Content $OV_CONF_PATH -Encoding UTF8
+        $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+        [System.IO.File]::WriteAllText($OV_CONF_PATH, ($c | ConvertTo-Json -Depth 10), $utf8NoBom)
 
         # Write .env for bot models
         if ($botChanged -or $bigbrainChanged) {
@@ -524,7 +525,7 @@ function Show-Settings {
             }
             if (-not $foundQA) { $newEnv += "CLAUDE_QUESTIONS_MODEL=$($newBot.Model)" }
             if (-not $foundBB) { $newEnv += "BIGBRAIN_MODEL=$($newBigbrain.Model)" }
-            $newEnv | Set-Content $BOT_ENV_PATH -Encoding UTF8
+            [System.IO.File]::WriteAllLines($BOT_ENV_PATH, $newEnv, [System.Text.UTF8Encoding]::new($false))
         }
 
         # Embedding: clear vector store if requested
