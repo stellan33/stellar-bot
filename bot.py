@@ -170,7 +170,7 @@ def run_claude_task(prompt, channel, thread_ts):
         messages = history + [{"role": "user", "content": prompt}]
 
         response = claude_client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
             max_tokens=4096,
             messages=messages
         )
@@ -178,7 +178,7 @@ def run_claude_task(prompt, channel, thread_ts):
 
         input_tokens = response.usage.input_tokens
         output_tokens = response.usage.output_tokens
-        stats_footer = f"\n`claude-sonnet-4-6 | {input_tokens:,} in / {output_tokens:,} out tokens`"
+        stats_footer = f"\n`claude-haiku-4-5-20251001 | {input_tokens:,} in / {output_tokens:,} out tokens`"
 
         if len(output) > 3000:
             output = output[:1400] + "\n\n... (truncated) ...\n\n" + output[-1400:]
