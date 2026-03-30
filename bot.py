@@ -27,6 +27,9 @@ OPENVIKING_CONFIG = os.path.expanduser(r"~\.openviking\ov.conf")
 CLAUDE_QUESTIONS_CHANNEL_NAME = "claude-questions"
 claude_questions_channel_id = None  # resolved at startup
 
+# Model for #claude-questions direct calls — change via launcher Settings or CLAUDE_QUESTIONS_MODEL in .env
+CLAUDE_QUESTIONS_MODEL = os.getenv("CLAUDE_QUESTIONS_MODEL", "claude-haiku-4-5-20251001")
+
 # Anthropic client for direct Claude calls
 claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
@@ -170,7 +173,7 @@ def run_claude_task(prompt, channel, thread_ts):
         messages = history + [{"role": "user", "content": prompt}]
 
         response = claude_client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model=CLAUDE_QUESTIONS_MODEL,
             max_tokens=4096,
             messages=messages
         )
@@ -178,7 +181,7 @@ def run_claude_task(prompt, channel, thread_ts):
 
         input_tokens = response.usage.input_tokens
         output_tokens = response.usage.output_tokens
-        stats_footer = f"\n`claude-haiku-4-5-20251001 | {input_tokens:,} in / {output_tokens:,} out tokens`"
+        stats_footer = f"\n`{CLAUDE_QUESTIONS_MODEL} | {input_tokens:,} in / {output_tokens:,} out tokens`"
 
         if len(output) > 3000:
             output = output[:1400] + "\n\n... (truncated) ...\n\n" + output[-1400:]
