@@ -278,46 +278,43 @@ function New-Btn($text, $x, $y, $w, $h, $bg = $DARK_BTN) {
 # Model Configuration — presets shown in the Settings dialog
 # =============================================================================
 $VLM_MODELS = @(
-    [PSCustomObject]@{ Label = "GPT-4o mini  (fast, cheap)";           Model = "openai/gpt-4o-mini"                  },
-    [PSCustomObject]@{ Label = "GPT-4o  (smart, ~10x cost)";           Model = "openai/gpt-4o"                       },
-    [PSCustomObject]@{ Label = "Claude Haiku 4.5  (fast Claude)";      Model = "anthropic/claude-haiku-4-5-20251001" },
-    [PSCustomObject]@{ Label = "Claude Sonnet 4.6  (balanced)";        Model = "anthropic/claude-sonnet-4-6"         },
-    [PSCustomObject]@{ Label = "Claude Opus 4.6  ★ bigbrain (pricey)"; Model = "anthropic/claude-opus-4-6"           }
+    [PSCustomObject]@{ Label = "GPT-4o mini  (fast, cheap)";      Model = "openai/gpt-4o-mini"                  },
+    [PSCustomObject]@{ Label = "GPT-4o  (smart, ~10x cost)";      Model = "openai/gpt-4o"                       },
+    [PSCustomObject]@{ Label = "Claude Haiku 4.5  (fast Claude)"; Model = "anthropic/claude-haiku-4-5-20251001" },
+    [PSCustomObject]@{ Label = "Claude Sonnet 4.6  (balanced)";   Model = "anthropic/claude-sonnet-4-6"         },
+    [PSCustomObject]@{ Label = "Claude Opus 4.6  [BIGBRAIN]";     Model = "anthropic/claude-opus-4-6"           }
 )
 
 $BOT_MODELS = @(
-    [PSCustomObject]@{ Label = "Claude Haiku 4.5  (fast, cheap)";      Model = "claude-haiku-4-5-20251001" },
-    [PSCustomObject]@{ Label = "Claude Sonnet 4.6  (balanced)";        Model = "claude-sonnet-4-6"         },
-    [PSCustomObject]@{ Label = "Claude Opus 4.6  ★ bigbrain (pricey)"; Model = "claude-opus-4-6"           }
+    [PSCustomObject]@{ Label = "Claude Haiku 4.5  (fast, cheap)"; Model = "claude-haiku-4-5-20251001" },
+    [PSCustomObject]@{ Label = "Claude Sonnet 4.6  (balanced)";   Model = "claude-sonnet-4-6"         },
+    [PSCustomObject]@{ Label = "Claude Opus 4.6  [BIGBRAIN]";     Model = "claude-opus-4-6"           }
 )
 
-# Destructive = $true means changing this WILL require re-indexing the vector store
 $EMBED_OPTIONS = @(
-    [PSCustomObject]@{ Label = "OpenAI text-embedding-3-large  (3072-dim)  [current]"; Provider = "openai"; Model = "text-embedding-3-large";       Dim = 3072; ApiKeyVar = "OPENAI_API_KEY"; ApiBase = "https://api.openai.com/v1"; Destructive = $false },
-    [PSCustomObject]@{ Label = "OpenAI text-embedding-3-small  (1536-dim)";            Provider = "openai"; Model = "text-embedding-3-small";        Dim = 1536; ApiKeyVar = "OPENAI_API_KEY"; ApiBase = "https://api.openai.com/v1"; Destructive = $true  },
-    [PSCustomObject]@{ Label = "Jina jina-embeddings-v3  (1024-dim)  ⚠ re-index";     Provider = "jina";   Model = "jina-embeddings-v3";            Dim = 1024; ApiKeyVar = "JINA_API_KEY";   ApiBase = "https://api.jina.ai/v1";    Destructive = $true  },
-    [PSCustomObject]@{ Label = "Jina jina-embeddings-v5-small  (1024-dim)  ⚠ re-index"; Provider = "jina"; Model = "jina-embeddings-v5-text-small"; Dim = 1024; ApiKeyVar = "JINA_API_KEY";   ApiBase = "https://api.jina.ai/v1";    Destructive = $true  }
+    [PSCustomObject]@{ Label = "OpenAI text-embedding-3-large  (3072-dim)  [current]";   Provider = "openai"; Model = "text-embedding-3-large";       Dim = 3072; ApiKeyVar = "OPENAI_API_KEY"; ApiBase = "https://api.openai.com/v1"; Destructive = $false },
+    [PSCustomObject]@{ Label = "OpenAI text-embedding-3-small  (1536-dim)  [! re-index]"; Provider = "openai"; Model = "text-embedding-3-small";      Dim = 1536; ApiKeyVar = "OPENAI_API_KEY"; ApiBase = "https://api.openai.com/v1"; Destructive = $true  },
+    [PSCustomObject]@{ Label = "Jina jina-embeddings-v3  (1024-dim)  [! re-index]";      Provider = "jina";   Model = "jina-embeddings-v3";           Dim = 1024; ApiKeyVar = "JINA_API_KEY";   ApiBase = "https://api.jina.ai/v1";    Destructive = $true  },
+    [PSCustomObject]@{ Label = "Jina jina-embeddings-v5-small  (1024-dim)  [! re-index]"; Provider = "jina";  Model = "jina-embeddings-v5-text-small"; Dim = 1024; ApiKeyVar = "JINA_API_KEY";  ApiBase = "https://api.jina.ai/v1";    Destructive = $true  }
 )
 
-$OV_CONF_PATH      = "$env:USERPROFILE\.openviking\ov.conf"
-$BOT_ENV_PATH      = "C:\Dev\stellar-bot\.env"
-$VECTORDB_STORE    = "C:\Dev\openviking_workspace\vectordb\context\store"
+$OV_CONF_PATH   = "$env:USERPROFILE\.openviking\ov.conf"
+$BOT_ENV_PATH   = "C:\Dev\stellar-bot\.env"
+$VECTORDB_STORE = "C:\Dev\openviking_workspace\vectordb\context\store"
 
 function Show-Settings {
-    # --- Read current values ---
+    # Read current values
     $raw  = Get-Content $OV_CONF_PATH -Raw
     $conf = $raw | ConvertFrom-Json
-    $currentVlmModel    = $conf.vlm.model
+    $currentVlmModel      = $conf.vlm.model
     $currentEmbedProvider = $conf.embedding.dense.provider
-    $currentEmbedModel  = $conf.embedding.dense.model
-    $currentEmbedDim    = $conf.embedding.dense.dimension
+    $currentEmbedModel    = $conf.embedding.dense.model
 
     $currentBotModel = "claude-haiku-4-5-20251001"
     foreach ($line in (Get-Content $BOT_ENV_PATH)) {
         if ($line -match "^CLAUDE_QUESTIONS_MODEL=(.+)$") { $currentBotModel = $Matches[1] }
     }
 
-    # --- Dialog form ---
     $dlg = New-Object System.Windows.Forms.Form
     $dlg.Text            = "Model Configuration"
     $dlg.Size            = New-Object System.Drawing.Size(484, 490)
@@ -329,8 +326,8 @@ function Show-Settings {
 
     $y = 14
 
-    # --- VLM section ---
-    $dlg.Controls.Add((New-Label "Viking VLM  (ov.conf · restart OV to apply)" 14 $y 440 20 $FONT_UI $CYAN))
+    # VLM section
+    $dlg.Controls.Add((New-Label "Viking VLM  (ov.conf - restart OV to apply)" 14 $y 440 20 $FONT_UI $CYAN))
     $y += 24
     $cmbVlm = New-Object System.Windows.Forms.ComboBox
     $cmbVlm.Location      = New-Object System.Drawing.Point(14, $y)
@@ -341,7 +338,7 @@ function Show-Settings {
     $cmbVlm.Font          = $FONT_UI
     $cmbVlm.FlatStyle     = "Flat"
     $selVlm = 0
-    foreach ($i in 0..($VLM_MODELS.Count - 1)) {
+    for ($i = 0; $i -lt $VLM_MODELS.Count; $i++) {
         $cmbVlm.Items.Add($VLM_MODELS[$i].Label) | Out-Null
         if ($VLM_MODELS[$i].Model -eq $currentVlmModel) { $selVlm = $i }
     }
@@ -349,8 +346,8 @@ function Show-Settings {
     $dlg.Controls.Add($cmbVlm)
     $y += 36
 
-    # --- Bot section ---
-    $dlg.Controls.Add((New-Label "Slack Bot — #claude-questions  (restart Bot to apply)" 14 $y 440 20 $FONT_UI $YELLOW))
+    # Bot section
+    $dlg.Controls.Add((New-Label "Slack Bot - #claude-questions  (restart Bot to apply)" 14 $y 440 20 $FONT_UI $YELLOW))
     $y += 24
     $cmbBot = New-Object System.Windows.Forms.ComboBox
     $cmbBot.Location      = New-Object System.Drawing.Point(14, $y)
@@ -361,7 +358,7 @@ function Show-Settings {
     $cmbBot.Font          = $FONT_UI
     $cmbBot.FlatStyle     = "Flat"
     $selBot = 0
-    foreach ($i in 0..($BOT_MODELS.Count - 1)) {
+    for ($i = 0; $i -lt $BOT_MODELS.Count; $i++) {
         $cmbBot.Items.Add($BOT_MODELS[$i].Label) | Out-Null
         if ($BOT_MODELS[$i].Model -eq $currentBotModel) { $selBot = $i }
     }
@@ -369,7 +366,7 @@ function Show-Settings {
     $dlg.Controls.Add($cmbBot)
     $y += 36
 
-    # --- Embedding divider ---
+    # Embedding divider
     $divE = New-Object System.Windows.Forms.Panel
     $divE.Location  = New-Object System.Drawing.Point(0, $y)
     $divE.Size      = New-Object System.Drawing.Size(484, 1)
@@ -377,7 +374,7 @@ function Show-Settings {
     $dlg.Controls.Add($divE)
     $y += 10
 
-    # --- Embedding section ---
+    # Embedding section
     $dlg.Controls.Add((New-Label "Embedding Model  (ov.conf)" 14 $y 300 20 $FONT_UI $MAGENTA))
     $y += 24
     $cmbEmbed = New-Object System.Windows.Forms.ComboBox
@@ -389,7 +386,7 @@ function Show-Settings {
     $cmbEmbed.Font          = $FONT_UI
     $cmbEmbed.FlatStyle     = "Flat"
     $selEmbed = 0
-    foreach ($i in 0..($EMBED_OPTIONS.Count - 1)) {
+    for ($i = 0; $i -lt $EMBED_OPTIONS.Count; $i++) {
         $cmbEmbed.Items.Add($EMBED_OPTIONS[$i].Label) | Out-Null
         if ($EMBED_OPTIONS[$i].Provider -eq $currentEmbedProvider -and $EMBED_OPTIONS[$i].Model -eq $currentEmbedModel) { $selEmbed = $i }
     }
@@ -397,8 +394,8 @@ function Show-Settings {
     $dlg.Controls.Add($cmbEmbed)
     $y += 32
 
-    # Warning label
-    $WARN_COLOR = [System.Drawing.Color]::FromArgb(220, 160, 60)
+    # Warning label for embedding changes
+    $WARN_COLOR   = [System.Drawing.Color]::FromArgb(220, 160, 60)
     $lblEmbedWarn = New-Label "" 14 $y 440 70 $FONT_INFO $WARN_COLOR
     $dlg.Controls.Add($lblEmbedWarn)
     $y += 76
@@ -414,32 +411,32 @@ function Show-Settings {
     $chkReindex.Visible   = $false
     $dlg.Controls.Add($chkReindex)
 
-    # Update warning when embedding selection changes
-    $refreshEmbedWarn = {
-        $opt = $EMBED_OPTIONS[$cmbEmbed.SelectedIndex]
-        $unchanged = ($opt.Provider -eq $currentEmbedProvider -and $opt.Model -eq $currentEmbedModel)
-        if ($unchanged) {
+    # Helper: update warning label based on selected embedding option
+    function Update-EmbedWarn {
+        $opt      = $EMBED_OPTIONS[$cmbEmbed.SelectedIndex]
+        $isSame   = ($opt.Provider -eq $currentEmbedProvider -and $opt.Model -eq $currentEmbedModel)
+        if ($isSame) {
             $lblEmbedWarn.Text  = ""
             $chkReindex.Visible = $false
             return
         }
         $keyVal = [System.Environment]::GetEnvironmentVariable($opt.ApiKeyVar, "User")
-        $keyMsg = if ($keyVal) { "($($opt.ApiKeyVar) found ✓)" } else { "⛔ $($opt.ApiKeyVar) not set — add it to Windows user env vars first." }
-        $lblEmbedWarn.Text = "⚠  DESTRUCTIVE: changing embedding model deletes all stored vectors. All indexed content must be re-embedded from scratch after. $keyMsg"
+        $keyMsg = if ($keyVal) { "($($opt.ApiKeyVar) found)" } else { "[!] $($opt.ApiKeyVar) not set - add it to Windows user env vars first." }
+        $lblEmbedWarn.Text  = "[!] DESTRUCTIVE: changing embedding model deletes all stored vectors. All indexed content must be re-embedded from scratch. $keyMsg"
         $chkReindex.Visible = $true
     }
-    $cmbEmbed.Add_SelectedIndexChanged($refreshEmbedWarn)
-    & $refreshEmbedWarn
+    $cmbEmbed.Add_SelectedIndexChanged({ Update-EmbedWarn })
+    Update-EmbedWarn
 
-    # --- Bottom divider + buttons ---
+    # Bottom divider and buttons
     $divB = New-Object System.Windows.Forms.Panel
     $divB.Location  = New-Object System.Drawing.Point(0, 396)
     $divB.Size      = New-Object System.Drawing.Size(484, 1)
     $divB.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
     $dlg.Controls.Add($divB)
 
-    $btnSave   = New-Btn "Save & Restart Affected"  14 406 210 32
-    $btnCancel = New-Btn "Cancel"                  236 406  80 32 $DARK_BTN_R
+    $btnSave   = New-Btn "Save and Restart Affected"  14 406 210 32
+    $btnCancel = New-Btn "Cancel"                    236 406  80 32 $DARK_BTN_R
     $dlg.Controls.Add($btnSave)
     $dlg.Controls.Add($btnCancel)
 
@@ -450,11 +447,11 @@ function Show-Settings {
         $newBot   = $BOT_MODELS[$cmbBot.SelectedIndex]
         $newEmbed = $EMBED_OPTIONS[$cmbEmbed.SelectedIndex]
 
-        $vlmChanged   = ($newVlm.Model   -ne $currentVlmModel)
-        $botChanged   = ($newBot.Model   -ne $currentBotModel)
+        $vlmChanged   = ($newVlm.Model -ne $currentVlmModel)
+        $botChanged   = ($newBot.Model -ne $currentBotModel)
         $embedChanged = ($newEmbed.Provider -ne $currentEmbedProvider -or $newEmbed.Model -ne $currentEmbedModel)
 
-        # Guard: check API key before allowing embedding change
+        # Block embedding change if required API key is missing
         if ($embedChanged) {
             $keyVal = [System.Environment]::GetEnvironmentVariable($newEmbed.ApiKeyVar, "User")
             if (-not $keyVal) {
@@ -466,39 +463,44 @@ function Show-Settings {
             }
         }
 
-        # --- Write ov.conf ---
+        # Write ov.conf
         $c = (Get-Content $OV_CONF_PATH -Raw) | ConvertFrom-Json
-        if ($vlmChanged)   { $c.vlm.model = $newVlm.Model }
+        if ($vlmChanged) { $c.vlm.model = $newVlm.Model }
         if ($embedChanged) {
             $c.embedding.dense.provider  = $newEmbed.Provider
             $c.embedding.dense.model     = $newEmbed.Model
             $c.embedding.dense.dimension = $newEmbed.Dim
-            $c.embedding.dense.api_key   = "`${ $($newEmbed.ApiKeyVar) }".Replace(" ", "")
+            $envVarRef = '$' + '{' + $newEmbed.ApiKeyVar + '}'
+            $c.embedding.dense.api_key   = $envVarRef
             $c.embedding.dense.api_base  = $newEmbed.ApiBase
         }
         $c | ConvertTo-Json -Depth 10 | Set-Content $OV_CONF_PATH -Encoding UTF8
 
-        # --- Write .env for bot model ---
+        # Write .env for bot model
         if ($botChanged) {
-            $found = $false
+            $found  = $false
             $newEnv = (Get-Content $BOT_ENV_PATH) | ForEach-Object {
-                if ($_ -match "^CLAUDE_QUESTIONS_MODEL=") { "CLAUDE_QUESTIONS_MODEL=$($newBot.Model)"; $found = $true } else { $_ }
+                if ($_ -match "^CLAUDE_QUESTIONS_MODEL=") {
+                    "CLAUDE_QUESTIONS_MODEL=$($newBot.Model)"
+                    $found = $true
+                } else { $_ }
             }
             if (-not $found) { $newEnv += "CLAUDE_QUESTIONS_MODEL=$($newBot.Model)" }
             $newEnv | Set-Content $BOT_ENV_PATH -Encoding UTF8
         }
 
-        # --- Embedding: clear vector store and restart if requested ---
+        # Embedding: clear vector store if requested
         if ($embedChanged -and $chkReindex.Checked) {
+            $dimInfo = "$($newEmbed.Dim)-dim"
             $ans = [System.Windows.Forms.MessageBox]::Show(
-                "This will:`n  1. Stop Viking`n  2. Delete vectordb/context/store (all stored vectors)`n  3. Restart Viking (rebuilds schema at new dimensions)`n`nYou must then re-run update-index-smart.bat to re-embed your content.`n`nProceed?",
-                "Confirm: Clear & Re-index", "YesNo", "Warning"
+                "This will:`n  1. Stop Viking`n  2. Delete vectordb/context/store`n  3. Restart Viking with new schema`n`nThen re-run update-index-smart.bat to re-embed content.`n`nProceed?",
+                "Confirm Clear and Re-index", "YesNo", "Warning"
             )
             if ($ans -eq "Yes") {
                 Stop-OV
                 Start-Sleep -Milliseconds 1500
                 Remove-Item -Path $VECTORDB_STORE -Recurse -Force -ErrorAction SilentlyContinue
-                Log "Vector store cleared. New embedding: $($newEmbed.Provider)/$($newEmbed.Model) ($($newEmbed.Dim)-dim)" $YELLOW
+                Log "Vector store cleared. New embedding: $($newEmbed.Provider)/$($newEmbed.Model) ($dimInfo)" $YELLOW
                 Start-OV
                 Log "Viking restarted. Run update-index-smart.bat to re-index content." $YELLOW
                 $dlg.Close()
@@ -506,9 +508,9 @@ function Show-Settings {
             }
         }
 
-        # --- Restart services affected by other changes ---
+        # Restart affected services
         if ($vlmChanged -or $embedChanged) {
-            Log "Restarting Viking (VLM/embedding config changed)..." $GRAY
+            Log "Restarting Viking (config changed)..." $GRAY
             Stop-OV; Start-Sleep -Milliseconds 800; Start-OV
         }
         if ($botChanged) {
@@ -516,7 +518,7 @@ function Show-Settings {
             Stop-Bot; Start-Sleep -Milliseconds 500; Start-Bot
         }
         if (-not $vlmChanged -and -not $botChanged -and -not $embedChanged) {
-            Log "Settings saved — no changes detected." $GRAY
+            Log "No changes detected." $GRAY
         }
 
         $dlg.Close()
