@@ -33,8 +33,15 @@ bigbrain_channel_id           = None  # resolved at startup
 CLAUDE_QUESTIONS_MODEL = os.getenv("CLAUDE_QUESTIONS_MODEL", "claude-haiku-4-5-20251001")
 BIGBRAIN_MODEL         = os.getenv("BIGBRAIN_MODEL", "claude-opus-4-6")
 
-# Anthropic client for direct Claude calls
+# Anthropic client for Claude models
 claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+# OpenRouter client (OpenAI-compatible) for non-Claude models
+import openai as _openai
+openrouter_client = _openai.OpenAI(
+    api_key=os.getenv("OPENROUTER_API_KEY"),
+    base_url="https://openrouter.ai/api/v1",
+)
 
 # =============================================================================
 # Initialize Slack App
@@ -172,15 +179,25 @@ def run_claude_task(prompt, channel, thread_ts, model, history_store, channel_la
         history  = history_store.get(thread_ts, [])
         messages = history + [{"role": "user", "content": prompt}]
 
-        response = claude_client.messages.create(
-            model=model,
-            max_tokens=4096,
-            messages=messages
-        )
-        output = response.content[0].text.strip()
+        if model.startswith("claude-"):
+            response = claude_client.messages.create(
+                model=model,
+                max_tokens=4096,
+                messages=messages,
+            )
+            output        = response.content[0].text.strip()
+            input_tokens  = response.usage.input_tokens
+            output_tokens = response.usage.output_tokens
+        else:
+            response = openrouter_client.chat.completions.create(
+                model=model,
+                max_tokens=4096,
+                messages=messages,
+            )
+            output        = response.choices[0].message.content.strip()
+            input_tokens  = response.usage.prompt_tokens
+            output_tokens = response.usage.completion_tokens
 
-        input_tokens  = response.usage.input_tokens
-        output_tokens = response.usage.output_tokens
         stats_footer  = f"\n`{model} | {input_tokens:,} in / {output_tokens:,} out tokens`"
 
         if len(output) > 3000:

@@ -286,12 +286,23 @@ $VLM_MODELS = @(
 )
 
 $BOT_MODELS = @(
-    [PSCustomObject]@{ Label = "Claude 3.5 Haiku  (fastest, cheapest)";  Model = "claude-3-5-haiku-20241022"    },
-    [PSCustomObject]@{ Label = "Claude Haiku 4.5  (fast, cheap)";        Model = "claude-haiku-4-5-20251001"    },
-    [PSCustomObject]@{ Label = "Claude 3.5 Sonnet  (prev-gen balanced)"; Model = "claude-3-5-sonnet-20241022"   },
-    [PSCustomObject]@{ Label = "Claude Sonnet 4.6  (balanced)";          Model = "claude-sonnet-4-6"            },
-    [PSCustomObject]@{ Label = "Claude Sonnet 4.6 Extended  (thinking)"; Model = "claude-sonnet-4-6-20250514"   },
-    [PSCustomObject]@{ Label = "Claude Opus 4.6  [BIGBRAIN]";            Model = "claude-opus-4-6"              }
+    # --- Anthropic (direct SDK) ---
+    [PSCustomObject]@{ Label = "Claude 3.5 Haiku  (fastest, cheapest)";       Model = "claude-3-5-haiku-20241022"    },
+    [PSCustomObject]@{ Label = "Claude Haiku 4.5  (fast, cheap)";             Model = "claude-haiku-4-5-20251001"    },
+    [PSCustomObject]@{ Label = "Claude 3.5 Sonnet  (prev-gen balanced)";      Model = "claude-3-5-sonnet-20241022"   },
+    [PSCustomObject]@{ Label = "Claude Sonnet 4.6  (balanced)";               Model = "claude-sonnet-4-6"            },
+    [PSCustomObject]@{ Label = "Claude Sonnet 4.6 Extended  (thinking)";      Model = "claude-sonnet-4-6-20250514"   },
+    [PSCustomObject]@{ Label = "Claude Opus 4.6  [BIGBRAIN]";                 Model = "claude-opus-4-6"              },
+    # --- OpenAI via OpenRouter ---
+    [PSCustomObject]@{ Label = "GPT-4o mini  (fast, cheap)";                  Model = "openai/gpt-4o-mini"           },
+    [PSCustomObject]@{ Label = "GPT-4o  (capable, balanced)";                 Model = "openai/gpt-4o"                },
+    [PSCustomObject]@{ Label = "o4-mini  (fast reasoning)";                   Model = "openai/o4-mini"               },
+    [PSCustomObject]@{ Label = "o3  (best reasoning, slow)";                  Model = "openai/o3"                    },
+    # --- Google via OpenRouter ---
+    [PSCustomObject]@{ Label = "Gemini 2.0 Flash  (very fast, cheap)";        Model = "google/gemini-2.0-flash-001"  },
+    [PSCustomObject]@{ Label = "Gemini 2.5 Pro  (highly capable)";            Model = "google/gemini-2.5-pro-preview-03-25" },
+    # --- Meta via OpenRouter ---
+    [PSCustomObject]@{ Label = "Llama 3.3 70B  (open-source, good quality)";  Model = "meta-llama/llama-3.3-70b-instruct" }
 )
 
 $EMBED_OPTIONS = @(
