@@ -25,10 +25,13 @@ OPENVIKING_CONFIG = os.path.expanduser(r"~\.openviking\ov.conf")
 
 # Channel routing
 CLAUDE_QUESTIONS_CHANNEL_NAME = "claude-questions"
-claude_questions_channel_id = None  # resolved at startup
+BIGBRAIN_CHANNEL_NAME         = "bigbrain"
+claude_questions_channel_id   = None  # resolved at startup
+bigbrain_channel_id           = None  # resolved at startup
 
-# Model for #claude-questions direct calls — change via launcher Settings or CLAUDE_QUESTIONS_MODEL in .env
+# Models — #claude-questions is configurable; #bigbrain is always Opus
 CLAUDE_QUESTIONS_MODEL = os.getenv("CLAUDE_QUESTIONS_MODEL", "claude-haiku-4-5-20251001")
+BIGBRAIN_MODEL         = "claude-opus-4-6"
 
 # Anthropic client for direct Claude calls
 claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
@@ -42,20 +45,27 @@ app = App(token=SLACK_BOT_TOKEN)
 task_running = False
 task_lock = threading.Lock()
 
-# Per-thread conversation history for #claude-questions (keyed by thread_ts)
-claude_thread_history = {}
+# Per-thread conversation history, keyed by thread_ts (separate per channel)
+claude_thread_history   = {}
+bigbrain_thread_history = {}
 
 def resolve_channel_ids():
     """Look up channel IDs by name at startup."""
-    global claude_questions_channel_id
+    global claude_questions_channel_id, bigbrain_channel_id
     try:
         result = app.client.conversations_list(types="public_channel,private_channel", limit=200)
         for ch in result.get("channels", []):
-            if ch.get("name") == CLAUDE_QUESTIONS_CHANNEL_NAME:
+            name = ch.get("name")
+            if name == CLAUDE_QUESTIONS_CHANNEL_NAME:
                 claude_questions_channel_id = ch["id"]
                 print(f"📢 #{CLAUDE_QUESTIONS_CHANNEL_NAME} → {claude_questions_channel_id}")
-                return
-        print(f"⚠️  Channel #{CLAUDE_QUESTIONS_CHANNEL_NAME} not found — create it in Slack first")
+            elif name == BIGBRAIN_CHANNEL_NAME:
+                bigbrain_channel_id = ch["id"]
+                print(f"🧠 #{BIGBRAIN_CHANNEL_NAME} → {bigbrain_channel_id}")
+        if not claude_questions_channel_id:
+            print(f"⚠️  Channel #{CLAUDE_QUESTIONS_CHANNEL_NAME} not found — create it in Slack first")
+        if not bigbrain_channel_id:
+            print(f"⚠️  Channel #{BIGBRAIN_CHANNEL_NAME} not found — create it in Slack first")
     except Exception as e:
         print(f"⚠️  Could not resolve channel IDs: {e}")
 
@@ -83,29 +93,23 @@ def run_viking_task(prompt, channel, thread_ts):
     session_id = f"slack-{thread_ts}".replace(".", "-")
 
     try:
-        # Notify starting
         app.client.chat_postMessage(
             channel=channel,
             thread_ts=thread_ts,
             text=f"🔄 Working on it...\n```{prompt}```"
         )
 
-        # Call vikingbot via OpenViking HTTP API
         response = requests.post(
             f"{OPENVIKING_URL}/bot/v1/chat",
-            json={
-                "message": prompt,
-                "session_id": session_id,
-                "stream": False,
-            },
+            json={"message": prompt, "session_id": session_id, "stream": False},
             timeout=300,
         )
         response.raise_for_status()
-        data = response.json()
+        data   = response.json()
         output = data.get("message", "").strip()
 
         # Build stats footer from events
-        events = data.get("events") or []
+        events     = data.get("events") or []
         tool_calls = [e for e in events if e.get("type") == "tool_call"]
         tool_names = [e["data"].split("(")[0] for e in tool_calls if e.get("data")]
 
@@ -113,8 +117,7 @@ def run_viking_task(prompt, channel, thread_ts):
         end_ts   = data.get("timestamp")
         if start_ts and end_ts:
             from datetime import datetime
-            fmt = "%Y-%m-%dT%H:%M:%S.%f"
-            elapsed = (datetime.fromisoformat(end_ts) - datetime.fromisoformat(start_ts)).total_seconds()
+            elapsed  = (datetime.fromisoformat(end_ts) - datetime.fromisoformat(start_ts)).total_seconds()
             time_str = f"{elapsed:.1f}s"
         else:
             time_str = None
@@ -128,7 +131,6 @@ def run_viking_task(prompt, channel, thread_ts):
             parts.append(time_str)
         stats_footer = "\n`" + " | ".join(parts) + "`" if parts else ""
 
-        # Truncate if too long for Slack
         if len(output) > 3000:
             output = output[:1400] + "\n\n... (truncated) ...\n\n" + output[-1400:]
 
@@ -143,23 +145,22 @@ def run_viking_task(prompt, channel, thread_ts):
             add_to_viking_memory("stellar-dev", prompt, output)
 
     except requests.Timeout:
-        app.client.chat_postMessage(
-            channel=channel,
-            thread_ts=thread_ts,
-            text="⏱️ Task timed out after 5 minutes."
-        )
+        app.client.chat_postMessage(channel=channel, thread_ts=thread_ts, text="⏱️ Task timed out after 5 minutes.")
     except Exception as e:
-        app.client.chat_postMessage(
-            channel=channel,
-            thread_ts=thread_ts,
-            text=f"❌ Error: {str(e)}"
-        )
+        app.client.chat_postMessage(channel=channel, thread_ts=thread_ts, text=f"❌ Error: {str(e)}")
     finally:
         with task_lock:
             task_running = False
 
-def run_claude_task(prompt, channel, thread_ts):
-    """Send prompt directly to Claude (no Viking) and report back to Slack."""
+
+def run_claude_task(prompt, channel, thread_ts, model, history_store, channel_label):
+    """Send prompt directly to Claude and report back to Slack.
+
+    Args:
+        model:         Anthropic model ID to use.
+        history_store: Dict keyed by thread_ts for per-thread conversation history.
+        channel_label: Short label used in log output and memory source tag.
+    """
     global task_running
     try:
         app.client.chat_postMessage(
@@ -168,20 +169,19 @@ def run_claude_task(prompt, channel, thread_ts):
             text=f"🔄 Asking Claude...\n```{prompt}```"
         )
 
-        # Build message history for this thread
-        history = claude_thread_history.get(thread_ts, [])
+        history  = history_store.get(thread_ts, [])
         messages = history + [{"role": "user", "content": prompt}]
 
         response = claude_client.messages.create(
-            model=CLAUDE_QUESTIONS_MODEL,
+            model=model,
             max_tokens=4096,
             messages=messages
         )
         output = response.content[0].text.strip()
 
-        input_tokens = response.usage.input_tokens
+        input_tokens  = response.usage.input_tokens
         output_tokens = response.usage.output_tokens
-        stats_footer = f"\n`{CLAUDE_QUESTIONS_MODEL} | {input_tokens:,} in / {output_tokens:,} out tokens`"
+        stats_footer  = f"\n`{model} | {input_tokens:,} in / {output_tokens:,} out tokens`"
 
         if len(output) > 3000:
             output = output[:1400] + "\n\n... (truncated) ...\n\n" + output[-1400:]
@@ -191,19 +191,13 @@ def run_claude_task(prompt, channel, thread_ts):
             thread_ts=thread_ts,
             text=f"✅ Done!\n{output}{stats_footer}"
         )
-        print(f"[BOT TX] #claude-questions | {len(output):,} chars | {input_tokens}in/{output_tokens}out tokens", flush=True)
+        print(f"[BOT TX] #{channel_label} | {len(output):,} chars | {input_tokens}in/{output_tokens}out tokens", flush=True)
 
-        # Update thread history
-        claude_thread_history[thread_ts] = messages + [{"role": "assistant", "content": output}]
-
-        add_to_viking_memory("claude-questions", prompt, output)
+        history_store[thread_ts] = messages + [{"role": "assistant", "content": output}]
+        add_to_viking_memory(channel_label, prompt, output)
 
     except Exception as e:
-        app.client.chat_postMessage(
-            channel=channel,
-            thread_ts=thread_ts,
-            text=f"❌ Error: {str(e)}"
-        )
+        app.client.chat_postMessage(channel=channel, thread_ts=thread_ts, text=f"❌ Error: {str(e)}")
     finally:
         with task_lock:
             task_running = False
@@ -214,11 +208,10 @@ def handle_mention(event, say):
     """Handle @mentions of the bot."""
     global task_running
 
-    text = event.get("text", "")
-    channel = event.get("channel")
+    text      = event.get("text", "")
+    channel   = event.get("channel")
     thread_ts = event.get("ts")
 
-    # Remove the bot mention from the text
     prompt = " ".join(text.split()[1:]) if " " in text else ""
 
     if not prompt:
@@ -231,32 +224,43 @@ def handle_mention(event, say):
             return
         task_running = True
 
-    chan_name = "#claude-questions" if channel == claude_questions_channel_id else "#stellar-dev"
-    print(f"[BOT RX] {chan_name} | {prompt[:60].replace(chr(10), ' ')}", flush=True)
-
     if channel == claude_questions_channel_id:
-        thread = threading.Thread(target=run_claude_task, args=(prompt, channel, thread_ts))
+        chan_name = "#claude-questions"
+        print(f"[BOT RX] {chan_name} | {prompt[:60].replace(chr(10), ' ')}", flush=True)
+        thread = threading.Thread(
+            target=run_claude_task,
+            args=(prompt, channel, thread_ts, CLAUDE_QUESTIONS_MODEL, claude_thread_history, "claude-questions")
+        )
+    elif channel == bigbrain_channel_id:
+        chan_name = "#bigbrain"
+        print(f"[BOT RX] {chan_name} | {prompt[:60].replace(chr(10), ' ')}", flush=True)
+        thread = threading.Thread(
+            target=run_claude_task,
+            args=(prompt, channel, thread_ts, BIGBRAIN_MODEL, bigbrain_thread_history, "bigbrain")
+        )
     else:
+        chan_name = "#stellar-dev"
+        print(f"[BOT RX] {chan_name} | {prompt[:60].replace(chr(10), ' ')}", flush=True)
         thread = threading.Thread(target=run_viking_task, args=(prompt, channel, thread_ts))
+
     thread.start()
+
 
 @app.event("message")
 def handle_dm(event, say):
     """Handle direct messages to the bot."""
     global task_running
 
-    # Ignore bot messages and messages in channels (we handle those via mentions)
     if event.get("bot_id") or event.get("channel_type") != "im":
         return
 
-    prompt = event.get("text", "")
-    channel = event.get("channel")
+    prompt    = event.get("text", "")
+    channel   = event.get("channel")
     thread_ts = event.get("ts")
 
     if not prompt:
         return
 
-    # Handle special commands
     if prompt.lower() == "status":
         say("🔍 Checking OpenViking status...")
         try:
@@ -275,6 +279,7 @@ def handle_dm(event, say):
 
     thread = threading.Thread(target=run_viking_task, args=(prompt, channel, thread_ts))
     thread.start()
+
 
 # =============================================================================
 # Start the bot
