@@ -11,7 +11,7 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 # TOKENS - loaded from .env
 # =============================================================================
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 SLACK_APP_TOKEN = os.getenv("SLACK_APP_TOKEN")
 
@@ -65,14 +65,14 @@ def resolve_channel_ids():
             name = ch.get("name")
             if name == CLAUDE_QUESTIONS_CHANNEL_NAME:
                 claude_questions_channel_id = ch["id"]
-                print(f"📢 #{CLAUDE_QUESTIONS_CHANNEL_NAME} → {claude_questions_channel_id}")
+                print(f"[CHANNEL] #{CLAUDE_QUESTIONS_CHANNEL_NAME} -> {claude_questions_channel_id}", flush=True)
             elif name == BIGBRAIN_CHANNEL_NAME:
                 bigbrain_channel_id = ch["id"]
-                print(f"🧠 #{BIGBRAIN_CHANNEL_NAME} → {bigbrain_channel_id}")
+                print(f"[CHANNEL] #{BIGBRAIN_CHANNEL_NAME} -> {bigbrain_channel_id}", flush=True)
         if not claude_questions_channel_id:
-            print(f"⚠️  Channel #{CLAUDE_QUESTIONS_CHANNEL_NAME} not found — create it in Slack first")
+            print(f"[CHANNEL] WARNING: #{CLAUDE_QUESTIONS_CHANNEL_NAME} not found -- create it in Slack and invite the bot", flush=True)
         if not bigbrain_channel_id:
-            print(f"⚠️  Channel #{BIGBRAIN_CHANNEL_NAME} not found — create it in Slack first")
+            print(f"[CHANNEL] WARNING: #{BIGBRAIN_CHANNEL_NAME} not found -- create it in Slack and invite the bot", flush=True)
     except Exception as e:
         print(f"⚠️  Could not resolve channel IDs: {e}")
 
