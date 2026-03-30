@@ -310,9 +310,11 @@ function Show-Settings {
     $currentEmbedProvider = $conf.embedding.dense.provider
     $currentEmbedModel    = $conf.embedding.dense.model
 
-    $currentBotModel = "claude-haiku-4-5-20251001"
+    $currentBotModel     = "claude-haiku-4-5-20251001"
+    $currentBigbrainModel = "claude-opus-4-6"
     foreach ($line in (Get-Content $BOT_ENV_PATH)) {
-        if ($line -match "^CLAUDE_QUESTIONS_MODEL=(.+)$") { $currentBotModel = $Matches[1] }
+        if ($line -match "^CLAUDE_QUESTIONS_MODEL=(.+)$") { $currentBotModel      = $Matches[1] }
+        if ($line -match "^BIGBRAIN_MODEL=(.+)$")         { $currentBigbrainModel = $Matches[1] }
     }
 
     $dlg = New-Object System.Windows.Forms.Form
@@ -346,8 +348,8 @@ function Show-Settings {
     $dlg.Controls.Add($cmbVlm)
     $y += 36
 
-    # Bot section
-    $dlg.Controls.Add((New-Label "Slack Bot - #claude-questions  (restart Bot to apply)" 14 $y 440 20 $FONT_UI $YELLOW))
+    # Bot section - #general-qa
+    $dlg.Controls.Add((New-Label "Slack Bot - #general-qa  (restart Bot to apply)" 14 $y 440 20 $FONT_UI $YELLOW))
     $y += 24
     $cmbBot = New-Object System.Windows.Forms.ComboBox
     $cmbBot.Location      = New-Object System.Drawing.Point(14, $y)
@@ -364,6 +366,26 @@ function Show-Settings {
     }
     $cmbBot.SelectedIndex = $selBot
     $dlg.Controls.Add($cmbBot)
+    $y += 36
+
+    # Bot section - #bigbrain
+    $dlg.Controls.Add((New-Label "Slack Bot - #bigbrain  (restart Bot to apply)" 14 $y 440 20 $FONT_UI $YELLOW))
+    $y += 24
+    $cmbBigbrain = New-Object System.Windows.Forms.ComboBox
+    $cmbBigbrain.Location      = New-Object System.Drawing.Point(14, $y)
+    $cmbBigbrain.Size          = New-Object System.Drawing.Size(440, 24)
+    $cmbBigbrain.DropDownStyle = "DropDownList"
+    $cmbBigbrain.BackColor     = [System.Drawing.Color]::FromArgb(50, 50, 50)
+    $cmbBigbrain.ForeColor     = $WHITE
+    $cmbBigbrain.Font          = $FONT_UI
+    $cmbBigbrain.FlatStyle     = "Flat"
+    $selBigbrain = 0
+    for ($i = 0; $i -lt $BOT_MODELS.Count; $i++) {
+        $cmbBigbrain.Items.Add($BOT_MODELS[$i].Label) | Out-Null
+        if ($BOT_MODELS[$i].Model -eq $currentBigbrainModel) { $selBigbrain = $i }
+    }
+    $cmbBigbrain.SelectedIndex = $selBigbrain
+    $dlg.Controls.Add($cmbBigbrain)
     $y += 36
 
     # Embedding divider
@@ -443,13 +465,15 @@ function Show-Settings {
     $btnCancel.Add_Click({ $dlg.Close() })
 
     $btnSave.Add_Click({
-        $newVlm   = $VLM_MODELS[$cmbVlm.SelectedIndex]
-        $newBot   = $BOT_MODELS[$cmbBot.SelectedIndex]
-        $newEmbed = $EMBED_OPTIONS[$cmbEmbed.SelectedIndex]
+        $newVlm      = $VLM_MODELS[$cmbVlm.SelectedIndex]
+        $newBot      = $BOT_MODELS[$cmbBot.SelectedIndex]
+        $newBigbrain = $BOT_MODELS[$cmbBigbrain.SelectedIndex]
+        $newEmbed    = $EMBED_OPTIONS[$cmbEmbed.SelectedIndex]
 
-        $vlmChanged   = ($newVlm.Model -ne $currentVlmModel)
-        $botChanged   = ($newBot.Model -ne $currentBotModel)
-        $embedChanged = ($newEmbed.Provider -ne $currentEmbedProvider -or $newEmbed.Model -ne $currentEmbedModel)
+        $vlmChanged      = ($newVlm.Model      -ne $currentVlmModel)
+        $botChanged      = ($newBot.Model      -ne $currentBotModel)
+        $bigbrainChanged = ($newBigbrain.Model -ne $currentBigbrainModel)
+        $embedChanged    = ($newEmbed.Provider -ne $currentEmbedProvider -or $newEmbed.Model -ne $currentEmbedModel)
 
         # Block embedding change if required API key is missing
         if ($embedChanged) {
@@ -476,16 +500,16 @@ function Show-Settings {
         }
         $c | ConvertTo-Json -Depth 10 | Set-Content $OV_CONF_PATH -Encoding UTF8
 
-        # Write .env for bot model
-        if ($botChanged) {
-            $found  = $false
-            $newEnv = (Get-Content $BOT_ENV_PATH) | ForEach-Object {
-                if ($_ -match "^CLAUDE_QUESTIONS_MODEL=") {
-                    "CLAUDE_QUESTIONS_MODEL=$($newBot.Model)"
-                    $found = $true
-                } else { $_ }
+        # Write .env for bot models
+        if ($botChanged -or $bigbrainChanged) {
+            $foundQA = $false; $foundBB = $false
+            $newEnv  = (Get-Content $BOT_ENV_PATH) | ForEach-Object {
+                if ($_ -match "^CLAUDE_QUESTIONS_MODEL=") { "CLAUDE_QUESTIONS_MODEL=$($newBot.Model)";      $foundQA = $true }
+                elseif ($_ -match "^BIGBRAIN_MODEL=")     { "BIGBRAIN_MODEL=$($newBigbrain.Model)";         $foundBB = $true }
+                else { $_ }
             }
-            if (-not $found) { $newEnv += "CLAUDE_QUESTIONS_MODEL=$($newBot.Model)" }
+            if (-not $foundQA) { $newEnv += "CLAUDE_QUESTIONS_MODEL=$($newBot.Model)" }
+            if (-not $foundBB) { $newEnv += "BIGBRAIN_MODEL=$($newBigbrain.Model)" }
             $newEnv | Set-Content $BOT_ENV_PATH -Encoding UTF8
         }
 
@@ -513,11 +537,11 @@ function Show-Settings {
             Log "Restarting Viking (config changed)..." $GRAY
             Stop-OV; Start-Sleep -Milliseconds 800; Start-OV
         }
-        if ($botChanged) {
-            Log "Restarting Bot (model: $($newBot.Model))..." $GRAY
+        if ($botChanged -or $bigbrainChanged) {
+            Log "Restarting Bot (general-qa: $($newBot.Model) / bigbrain: $($newBigbrain.Model))..." $GRAY
             Stop-Bot; Start-Sleep -Milliseconds 500; Start-Bot
         }
-        if (-not $vlmChanged -and -not $botChanged -and -not $embedChanged) {
+        if (-not $vlmChanged -and -not $botChanged -and -not $bigbrainChanged -and -not $embedChanged) {
             Log "No changes detected." $GRAY
         }
 

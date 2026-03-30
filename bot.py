@@ -24,14 +24,14 @@ OV_EXE = r"C:\Users\andre\Anaconda3\envs\openviking\Scripts\ov.exe"
 OPENVIKING_CONFIG = os.path.expanduser(r"~\.openviking\ov.conf")
 
 # Channel routing
-CLAUDE_QUESTIONS_CHANNEL_NAME = "claude-questions"
+CLAUDE_QUESTIONS_CHANNEL_NAME = "general-qa"
 BIGBRAIN_CHANNEL_NAME         = "bigbrain"
 claude_questions_channel_id   = None  # resolved at startup
 bigbrain_channel_id           = None  # resolved at startup
 
-# Models — #claude-questions is configurable; #bigbrain is always Opus
+# Models — both configurable via launcher Settings or .env
 CLAUDE_QUESTIONS_MODEL = os.getenv("CLAUDE_QUESTIONS_MODEL", "claude-haiku-4-5-20251001")
-BIGBRAIN_MODEL         = "claude-opus-4-6"
+BIGBRAIN_MODEL         = os.getenv("BIGBRAIN_MODEL", "claude-opus-4-6")
 
 # Anthropic client for direct Claude calls
 claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
