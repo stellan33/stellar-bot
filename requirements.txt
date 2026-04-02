@@ -3,3 +3,5 @@ anthropic
 openai
 python-dotenv
 requests
+schedule
+pytz

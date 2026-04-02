@@ -307,6 +307,5 @@ if __name__ == "__main__":
     print(f"🔗 OpenViking: {OPENVIKING_URL}")
     resolve_channel_ids()
     print("Waiting for messages...")
-
     handler = SocketModeHandler(app, SLACK_APP_TOKEN)
     handler.start()

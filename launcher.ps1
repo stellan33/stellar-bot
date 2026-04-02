@@ -11,10 +11,11 @@ $notifyIcon.ShowBalloonTip(3000, "Stellar Dev Services", "Loading...", [System.W
 # =============================================================================
 # Paths
 # =============================================================================
-$BOT_DIR = "C:\Dev\stellar-bot"
-$OV_EXE  = "C:\Users\andre\Anaconda3\envs\openviking\Scripts\openviking-server.exe"
-$PYTHON  = "C:\Users\andre\Anaconda3\envs\openviking\python.exe"
-$APP_DIR = "C:\Dev\Stellar_studio\app"
+$BOT_DIR      = "C:\Dev\stellar-bot"
+$BRIEFING_DIR = "C:\Dev\stellar-briefing"
+$OV_EXE       = "C:\Users\andre\Anaconda3\envs\openviking\Scripts\openviking-server.exe"
+$PYTHON       = "C:\Users\andre\Anaconda3\envs\openviking\python.exe"
+$APP_DIR      = "C:\Dev\Stellar_studio\app"
 
 # =============================================================================
 # Shared state
@@ -25,13 +26,14 @@ $APP_DIR = "C:\Dev\Stellar_studio\app"
 #   svcData  - live parsed data per service
 # =============================================================================
 $script:Q       = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
-$script:procs   = @{ OV = $null; BOT = $null; DEV = $null }
-$script:prev    = @{ OV = $false; BOT = $false; DEV = $false }
+$script:procs   = @{ OV = $null; BOT = $null; DEV = $null; BRF = $null }
+$script:prev    = @{ OV = $false; BOT = $false; DEV = $false; BRF = $false }
 $script:infoLabels = @{}
 $script:svcData = @{
     OV  = @{ LastRX = "--:--:--"; LastTX = "--:--:--" }
     BOT = @{ Chan = ""; Snippet = "waiting for first message..."; LastTX = "--:--:--"; Busy = $false }
     DEV = @{ Local = "--"; Network = "--"; Build = "starting..." }
+    BRF = @{ Snippet = "scheduler waiting..."; LastPost = "--:--:--" }
 }
 
 # =============================================================================
@@ -43,6 +45,12 @@ function Test-Port($port) {
 function Test-BotRunning {
     foreach ($p in (Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue)) {
         if ($p.CommandLine -like "*bot.py*") { return $true }
+    }
+    return $false
+}
+function Test-BriefingRunning {
+    foreach ($p in (Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue)) {
+        if ($p.CommandLine -like "*briefing.py*") { return $true }
     }
     return $false
 }
@@ -64,6 +72,10 @@ function Get-DevInfoText {
     $d = $script:svcData["DEV"]
     return "local: $($d.Local)   network: $($d.Network)   $($d.Build)"
 }
+function Get-BriefingInfoText {
+    $d = $script:svcData["BRF"]
+    return "last post: $($d.LastPost)   $($d.Snippet)"
+}
 
 function Refresh-InfoLabel($key) {
     $lbl = $script:infoLabels[$key]
@@ -72,6 +84,7 @@ function Refresh-InfoLabel($key) {
         "OV"  { $lbl.Text = Get-OvInfoText }
         "BOT" { $lbl.Text = Get-BotInfoText }
         "DEV" { $lbl.Text = Get-DevInfoText }
+        "BRF" { $lbl.Text = Get-BriefingInfoText }
     }
 }
 
@@ -220,6 +233,23 @@ function Stop-Dev {
     $conn = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue
     if ($conn) { Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue }
 }
+function Start-Briefing {
+    $script:svcData["BRF"].Snippet  = "scheduler waiting..."
+    $script:svcData["BRF"].LastPost = "--:--:--"
+    Refresh-InfoLabel "BRF"
+    $script:procs["BRF"] = New-ManagedProcess `
+        -exe       $PYTHON `
+        -arguments "briefing.py" `
+        -workDir   $BRIEFING_DIR `
+        -extraEnv  @{ "PYTHONUTF8" = "1"; "PYTHONIOENCODING" = "utf-8" } `
+        -svcKey "BRF"
+}
+function Stop-Briefing {
+    Stop-Managed "BRF"
+    foreach ($p in (Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue)) {
+        if ($p.CommandLine -like "*briefing.py*") { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
+    }
+}
 
 # =============================================================================
 # Colors / Fonts
@@ -235,6 +265,7 @@ $WHITE      = [System.Drawing.Color]::FromArgb(230, 230, 230)
 $CYAN       = [System.Drawing.Color]::FromArgb(100, 220, 220)
 $YELLOW     = [System.Drawing.Color]::FromArgb(220, 200, 80)
 $MAGENTA    = [System.Drawing.Color]::FromArgb(200, 130, 210)
+$ORANGE     = [System.Drawing.Color]::FromArgb(220, 150, 60)
 $INFO_COLOR = [System.Drawing.Color]::FromArgb(190, 200, 215)
 
 $FONT_UI   = New-Object System.Drawing.Font("Segoe UI", 9.5)
@@ -242,7 +273,7 @@ $FONT_BOLD = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.Font
 $FONT_MONO = New-Object System.Drawing.Font("Consolas", 8.5)
 $FONT_INFO = New-Object System.Drawing.Font("Consolas", 9)
 
-$SVC_COLOR = @{ OV = $CYAN; BOT = $YELLOW; DEV = $MAGENTA }
+$SVC_COLOR = @{ OV = $CYAN; BOT = $YELLOW; DEV = $MAGENTA; BRF = $ORANGE }
 
 # =============================================================================
 # UI Helpers
@@ -571,7 +602,7 @@ function Show-Settings {
 # =============================================================================
 $form = New-Object System.Windows.Forms.Form
 $form.Text            = "Stellar Dev Services"
-$form.Size            = New-Object System.Drawing.Size(510, 620)
+$form.Size            = New-Object System.Drawing.Size(510, 696)
 $form.StartPosition   = "CenterScreen"
 $form.FormBorderStyle = "FixedSingle"
 $form.MaximizeBox     = $false
@@ -593,16 +624,17 @@ $form.Controls.Add($div1)
 #     Line 2 (y+32): live info strip (URLs, timestamps, last message, etc.)
 # =============================================================================
 $services = @(
-    @{ Key="OV";  Name="OpenViking"; Check={ Test-Port 1933 };  StartFn={ Start-OV };  StopFn={ Stop-OV } },
-    @{ Key="BOT"; Name="Slack Bot";  Check={ Test-BotRunning }; StartFn={ Start-Bot }; StopFn={ Stop-Bot } },
-    @{ Key="DEV"; Name="Dev Server"; Check={ Test-Port 3000 };  StartFn={ Start-Dev }; StopFn={ Stop-Dev } }
+    @{ Key="OV";  Name="OpenViking"; Check={ Test-Port 1933 };        StartFn={ Start-OV };       StopFn={ Stop-OV } },
+    @{ Key="BOT"; Name="Slack Bot";  Check={ Test-BotRunning };       StartFn={ Start-Bot };      StopFn={ Stop-Bot } },
+    @{ Key="DEV"; Name="Dev Server"; Check={ Test-Port 3000 };        StartFn={ Start-Dev };      StopFn={ Stop-Dev } },
+    @{ Key="BRF"; Name="Briefing";   Check={ Test-BriefingRunning };  StartFn={ Start-Briefing }; StopFn={ Stop-Briefing } }
 )
 
 $rows  = @()
 $yBase = 60
 $rowH  = 76   # expanded to fit info strip
 
-foreach ($i in 0..2) {
+foreach ($i in 0..3) {
     $svc = $services[$i]
     $y   = $yBase + $i * $rowH
 
@@ -626,6 +658,7 @@ foreach ($i in 0..2) {
         "OV"  { Get-OvInfoText }
         "BOT" { Get-BotInfoText }
         "DEV" { Get-DevInfoText }
+        "BRF" { Get-BriefingInfoText }
     }
     $lblInfo = New-Label $initText 4 36 464 22 $FONT_INFO $INFO_COLOR
 
@@ -640,19 +673,19 @@ foreach ($i in 0..2) {
 # Divider + bottom buttons
 # =============================================================================
 $div2 = New-Object System.Windows.Forms.Panel
-$div2.Location  = New-Object System.Drawing.Point(0, 292)
+$div2.Location  = New-Object System.Drawing.Point(0, 368)
 $div2.Size      = New-Object System.Drawing.Size(510, 1)
 $div2.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
 $form.Controls.Add($div2)
 
-$btnStartAll  = New-Btn "> Start All"  10  302 130 32
-$btnStopAll   = New-Btn "| Stop All"  148  302 130 32 $DARK_BTN_R
-$btnSettings  = New-Btn "⚙ Config"   284  302  70 32
-$btnRefresh   = New-Btn "~ Refresh"  358  302 130 32
+$btnStartAll  = New-Btn "> Start All"  10  378 130 32
+$btnStopAll   = New-Btn "| Stop All"  148  378 130 32 $DARK_BTN_R
+$btnSettings  = New-Btn "⚙ Config"   284  378  70 32
+$btnRefresh   = New-Btn "~ Refresh"  358  378 130 32
 $form.Controls.AddRange(@($btnStartAll, $btnStopAll, $btnSettings, $btnRefresh))
 
 $div3 = New-Object System.Windows.Forms.Panel
-$div3.Location  = New-Object System.Drawing.Point(0, 345)
+$div3.Location  = New-Object System.Drawing.Point(0, 421)
 $div3.Size      = New-Object System.Drawing.Size(510, 1)
 $div3.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
 $form.Controls.Add($div3)
@@ -661,8 +694,8 @@ $form.Controls.Add($div3)
 # Log box
 # =============================================================================
 $logBox = New-Object System.Windows.Forms.RichTextBox
-$logBox.Location    = New-Object System.Drawing.Point(10, 352)
-$logBox.Size        = New-Object System.Drawing.Size(474, 230)
+$logBox.Location    = New-Object System.Drawing.Point(10, 428)
+$logBox.Size        = New-Object System.Drawing.Size(474, 220)
 $logBox.BackColor   = [System.Drawing.Color]::FromArgb(18, 18, 18)
 $logBox.ForeColor   = $GREEN
 $logBox.ReadOnly    = $true
@@ -765,6 +798,7 @@ $btnStartAll.Add_Click({
     if (Test-Port 1933) {
         Start-Bot
         Start-Dev
+        Start-Briefing
     } else {
         Log "WARNING: OpenViking did not come up in time." $RED
     }
@@ -772,7 +806,7 @@ $btnStartAll.Add_Click({
 })
 
 $btnStopAll.Add_Click({
-    Stop-Bot; Stop-Dev; Stop-OV
+    Stop-Bot; Stop-Dev; Stop-Briefing; Stop-OV
     Log "All services stopped." $RED
     Update-Status
 })
@@ -880,6 +914,22 @@ $drainTimer.Add_Tick({
                 # Compile complete
                 if ($text -match 'compiled.*successfully|compiled client') {
                     $script:svcData["DEV"].Build = "compiled"
+                    $infoChanged = $true
+                }
+            }
+
+            "BRF" {
+                if ($text -match '\[BRIEFING\] Posted (#\S+)') {
+                    $script:svcData["BRF"].LastPost = (Get-Date -Format 'HH:mm:ss')
+                    $script:svcData["BRF"].Snippet  = "posted $($Matches[1])"
+                    $infoChanged = $true
+                }
+                if ($text -match 'Scheduled daily at') {
+                    $script:svcData["BRF"].Snippet = "scheduled 7:00 AM ET"
+                    $infoChanged = $true
+                }
+                if ($text -match 'Running daily briefing') {
+                    $script:svcData["BRF"].Snippet = "running briefing..."
                     $infoChanged = $true
                 }
             }
