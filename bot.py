@@ -35,12 +35,83 @@ CLAUDE_QUESTIONS_MODEL = os.getenv("CLAUDE_QUESTIONS_MODEL", "claude-sonnet-4-6"
 BIGBRAIN_MODEL         = os.getenv("BIGBRAIN_MODEL",         "claude-opus-4-6")
 STELLAR_DEV_MODEL      = os.getenv("STELLAR_DEV_MODEL",      "claude-sonnet-4-6")
 
-# System prompt for #stellar-dev
-STELLAR_DEV_SYSTEM = (
-    "You are a senior developer assistant for Stellar Studio, a Next.js video production platform. "
-    "Help with code questions, debugging, architecture decisions, and implementation. "
-    "Be concise and direct."
+# System prompt for all channels — lightweight context about who Andre is and what SMG does
+GENERAL_SYSTEM = (
+    "You are a helpful assistant for Stellar Media Group (SMG), a startup offering small and medium "
+    "businesses professional video production and distribution. The founder is Andre, a self-taught "
+    "developer who builds in JavaScript/Next.js and hosts on AWS. The core product is Stellar Studio, "
+    "a back-end platform for 1-to-many video creation, distribution, and data. "
+    "Be concise and direct. Skip preamble."
 )
+
+# System prompt for #stellar-dev — full codebase context
+STELLAR_DEV_SYSTEM = GENERAL_SYSTEM + """
+
+## STELLAR STUDIO — APP STRUCTURE MAP (Next.js 16, hosted on AWS Amplify)
+
+### PAGES / ROUTES (src/app/)
+login/page.js                           — Login
+dashboard/page.js                       — Main dashboard
+clipping/page.js                        — Clip jobs list
+clipping/[jobId]/page.js                — Single clip job view
+clipping/[jobId]/edit/[clipId]/page.js  — Clip editor (FFmpeg WASM, SharedArrayBuffer)
+approvals/page.js                       — Approvals list
+approvals/[batchId]/page.js             — Single approval batch
+assets/page.js                          — Asset library
+uploads/[token]/page.js                 — Public upload portal (token-gated)
+review/[token]/page.js                  — Public review portal (token-gated)
+posts/page.js                           — Posts list
+publishing/page.js                      — Publishing queue
+metrics/page.js                         — Metrics overview
+reporting/page.js                       — Reporting list
+reporting/[locationId]/page.js          — Per-location report
+locations/page.js                       — Locations list
+locations/[id]/page.js                  — Single location
+franchise/page.js                       — Franchise view
+settings/prompts/page.js               — Prompt settings
+settings/templates/page.js             — Template settings
+settings/users/page.js                 — User management
+
+### API ROUTES (src/app/api/)
+# Uploads / Assets
+create-upload-link, request-upload-url, staff-upload-url, upload-asset,
+delete-upload, update-media-upload, get-download-url, brand-logo-url
+# Clipping / Rendering
+clip-job, render-clip, clip-export-url
+# Review / Approval
+get-batch, submit-review, validate-token
+# Social — Meta (Facebook/Instagram)
+social/meta/auth, callback, revoke
+# Social — YouTube
+social/youtube/auth, callback, revoke
+# Social — PostForMe
+social/postforme/auth, callback, accounts, publish, unpublish, feed,
+analytics, post-status, disconnect
+# Social — Shared
+social/publish, social/sync-metrics
+# Admin
+admin/users
+
+### KEY COMPONENTS (src/components/)
+AmplifyProvider.jsx, ThemeProvider.jsx, BrandPersonaWizard.jsx,
+BrandPromptOverrides.jsx, TemplateAssignmentDialog.jsx, StatusBadge.jsx
+clip-editor/: CaptionStylePanel, CaptionTrack, EditCanvas, TranscriptPanel
+clipping/: ClipCard, ClipEditPage, ClipEditor, LightTrimView,
+  PostForMePublishSection, PublishingPanel, SocialPostSheet
+layout/: AppShell.jsx (main shell), Sidebar.jsx (nav)
+
+### HOOKS (src/hooks/)
+useAuth, useClipJobs, useFFmpeg, useGraphQL, useProcessingManager, useServerRender
+
+### LIB (src/lib/)
+amplify-config, aws-clients (S3), captions, contentTypes, platformConfig,
+postformeClient, postformePlatforms, promptDefaults, renderHash,
+templateResolver, utils, videoStore, graphql/queries, graphql/mutations
+
+### TECH STACK
+Next.js 16 (Turbopack), Tailwind + shadcn/ui, AWS Amplify (AppSync/GraphQL, S3, Cognito),
+FFmpeg WASM (client-side clip editor), server-side render pipeline (FFmpeg binary)
+"""
 
 # Anthropic client for Claude models
 claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
@@ -202,14 +273,14 @@ def handle_mention(event, say):
         print(f"[BOT RX] {chan_name} | {prompt[:60].replace(chr(10), ' ')}", flush=True)
         thread = threading.Thread(
             target=run_claude_task,
-            args=(prompt, channel, thread_ts, CLAUDE_QUESTIONS_MODEL, claude_thread_history, "general-qa")
+            args=(prompt, channel, thread_ts, CLAUDE_QUESTIONS_MODEL, claude_thread_history, "general-qa", GENERAL_SYSTEM)
         )
     elif channel == bigbrain_channel_id:
         chan_name = "#bigbrain"
         print(f"[BOT RX] {chan_name} | {prompt[:60].replace(chr(10), ' ')}", flush=True)
         thread = threading.Thread(
             target=run_claude_task,
-            args=(prompt, channel, thread_ts, BIGBRAIN_MODEL, bigbrain_thread_history, "bigbrain")
+            args=(prompt, channel, thread_ts, BIGBRAIN_MODEL, bigbrain_thread_history, "bigbrain", GENERAL_SYSTEM)
         )
     elif channel == stellar_dev_channel_id:
         chan_name = "#stellar-dev"
@@ -224,7 +295,7 @@ def handle_mention(event, say):
         print(f"[BOT RX] {chan_name} | {prompt[:60].replace(chr(10), ' ')}", flush=True)
         thread = threading.Thread(
             target=run_claude_task,
-            args=(prompt, channel, thread_ts, CLAUDE_QUESTIONS_MODEL, claude_thread_history, channel)
+            args=(prompt, channel, thread_ts, CLAUDE_QUESTIONS_MODEL, claude_thread_history, channel, GENERAL_SYSTEM)
         )
 
     thread.start()
@@ -254,7 +325,7 @@ def handle_dm(event, say):
     print(f"[BOT RX] DM | {prompt[:60].replace(chr(10), ' ')}", flush=True)
     thread = threading.Thread(
         target=run_claude_task,
-        args=(prompt, channel, thread_ts, CLAUDE_QUESTIONS_MODEL, claude_thread_history, "dm")
+        args=(prompt, channel, thread_ts, CLAUDE_QUESTIONS_MODEL, claude_thread_history, "dm", GENERAL_SYSTEM)
     )
     thread.start()
 
